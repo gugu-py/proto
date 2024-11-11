@@ -1,12 +1,14 @@
+# element.py
+
 import uuid
 
 class Element:
     def __init__(self, name):
         self.name = name
         self.id = uuid.uuid4()
-        self.connections = {}           # Stores active connections with unique keys
-        self.pending_recieved_requests = {}       # Stores recieved connection requests awaiting approval
-        self.pending_sent_requests = {}   # Stores sent connection requests awaiting approval
+        self.connections = {}            # Stores active connections with unique keys
+        self.pending_recieved_requests = {}  # Stores received connection requests awaiting approval
+        self.pending_sent_requests = {}  # Stores sent connection requests awaiting approval
         self.awaiting_approvals = {}     # Tracks approvals sent but not yet connected
 
     def get_id(self):
@@ -37,11 +39,11 @@ class Element:
 
     def receive_approval(self, target, connection_key):
         # Upon receiving approval, establish the connection
-        if target.get_id() in self.pending_sent_requests and self.pending_sent_requests[target.get_id()]==connection_key:
+        if target.get_id() in self.pending_sent_requests and self.pending_sent_requests[target.get_id()] == connection_key:
             self.awaiting_approvals[target.get_id()] = connection_key
             self.finalize_connection(target)
         else:
-            print(f"[{self.name}] Recieved invalid approval request from {target.name}")
+            print(f"[{self.name}] Received invalid approval request from {target.name}")
 
     def finalize_connection(self, target):
         # Complete the connection only if approval was received
@@ -68,3 +70,19 @@ class Element:
             print(f"[{self.name}] Terminated connection with {target.name}")
         else:
             print(f"[{self.name}] No active connection with {target.name}")
+
+    # New message functions
+    def send_message(self, target, message):
+        # Send a message to a connected target
+        if target.get_id() in self.connections:
+            print(f"[{self.name}] Sent message to {target.name}: '{message}'")
+            target.receive_message(self, message)
+        else:
+            print(f"[{self.name}] Cannot send message. No active connection with {target.name}")
+
+    def receive_message(self, sender, message):
+        # Receive a message from a connected sender
+        if sender.get_id() in self.connections:
+            print(f"[{self.name}] Received message from {sender.name}: '{message}'")
+        else:
+            print(f"[{self.name}] Cannot receive message. No active connection with {sender.name}")

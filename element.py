@@ -7,15 +7,22 @@ class ProxyKey:
         self.requester_id = requester_id  # The initiator of the connection request
         self.receiver_id = receiver_id    # The intended recipient of the connection request
         self.key = uuid.uuid4()           # Unique proxy key for authentication
+        self.is_expired = False           # Track expiration status
     
     def get_key(self) -> uuid.UUID:
         return self.key
 
+    def expire(self):
+        """ Mark the proxy key as expired """
+        self.is_expired = True
+
     def is_valid_for(self, handler_id: uuid.UUID, requester_id: uuid.UUID, receiver_id: uuid.UUID) -> bool:
-        """ Validate the ProxyKey against handler, requester, and receiver IDs """
-        return (self.handler_id == handler_id and
+        """ Validate the ProxyKey against handler, requester, and receiver IDs, and check if it is not expired """
+        return (not self.is_expired and
+                self.handler_id == handler_id and
                 self.requester_id == requester_id and
                 self.receiver_id == receiver_id)
+
 
 class Element:
     def __init__(self, name: str):
@@ -88,6 +95,12 @@ class Element:
                 proxy_key_object.is_valid_for(proxy['proxy-id'], requester.get_id(), self.get_id()) and
                 proxy_key_object.get_key() == proxy['proxy-key']):
                 self.pending_received_requests[requester.get_id()] = connection_key
+                
+                # Expire the proxy key after rejection
+                proxy_key = self.proxy_keys.pop((requester.get_id(), self.get_id()), None)
+                if proxy_key:
+                    proxy_key.expire()
+
                 print(f"[{self.name}] Received proxied connection request from {requester.name} through {proxy['proxy-id']}")
             else:
                 print(f"[{self.name}] Blocked proxied request from {requester.name} through untrusted proxy")
@@ -98,6 +111,12 @@ class Element:
             connection_key = self.pending_received_requests.pop(requester.get_id())
             self.awaiting_approvals[requester.get_id()] = connection_key
             print(f"[{self.name}] Sent approval to {requester.name}")
+
+            # Expire the proxy key after approval
+            proxy_key = self.proxy_keys.pop((requester.get_id(), self.get_id()), None)
+            if proxy_key:
+                proxy_key.expire()
+
             requester.receive_approval(self, connection_key)
         else:
             print(f"[{self.name}] No pending request from {requester.name}")
@@ -128,3 +147,56 @@ class Element:
             print(f"[{self.name}] Received finalized connection from {target.name}")
         else:
             print(f"[{self.name}] Received invalid finalized connection from {target.name}")
+    
+
+    def reject_connection(self, requester: 'Element'):
+        # Reject and remove a pending connection request
+        if requester.get_id() in self.pending_received_requests:
+            del self.pending_received_requests[requester.get_id()]
+            # Expire the proxy key after rejection
+            proxy_key = self.proxy_keys.pop((requester.get_id(), self.get_id()), None)
+            if proxy_key:
+                proxy_key.expire()
+            print(f"[{self.name}] Rejected connection request from {requester.name}")
+        else:
+            print(f"[{self.name}] No pending request from {requester.name}")
+
+    def cancel_connection(self, requester: 'Element'):
+        if requester.get_id() in self.pending_sent_requests:
+            del self.pending_sent_requests[requester.get_id()]
+            print(f"[{self.name}] Canceled connection request to {requester.name}")
+        else:
+            print(f"[{self.name}] No sent request to {requester.name}")
+
+    def terminate_connection(self, target: 'Element'):
+        # Terminate an existing connection if it exists
+        if target.get_id() in self.connections:
+            target.recieve_terminate(self, self.connections[target.get_id()])
+            del self.connections[target.get_id()]
+            print(f"[{self.name}] Terminated connection with {target.name}")
+        else:
+            print(f"[{self.name}] No active connection with {target.name}")
+
+    def recieve_terminate(self, target: 'Element', connection_key: uuid.UUID):
+        if target.get_id() in self.connections and self.connections[target.get_id()] == connection_key:
+            del self.connections[target.get_id()]
+            print(f"[{self.name}] Received terminated connection with {target.name}")
+        else:
+            print(f"[{self.name}] Received invalid terminated connection with {target.name}")
+
+    def send_message(self, target: 'Element', message: str):
+        # Send a message to a connected target
+        if target.get_id() in self.connections:
+            print(f"[{self.name}] Sent message to {target.name}: '{message}'")
+            target.receive_message(self, message)
+        else:
+            print(f"[{self.name}] Cannot send message. No active connection with {target.name}")
+
+    def receive_message(self, sender: 'Element', message: str):
+        # Receive a message from a connected sender
+        if sender.get_id() in self.connections:
+            print(f"[{self.name}] Received message from {sender.name}: '{message}'")
+        else:
+            print(f"[{self.name}] Cannot receive message. No active connection with {sender.name}")
+
+

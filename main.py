@@ -5,78 +5,44 @@ import uuid
 
 # Create elements
 alice = Element("Alice")
-bob = Element("Bob")
-attacker = Element("Attacker")
+bob = Element("Bob")        # Bob will act as the legitimate proxy
+charlie = Element("Charlie")
+hacker = Element("Hacker")   # Hacker will attempt an unauthorized proxy
+fake_proxy_key = uuid.uuid4() # A fake proxy key for the unauthorized attempt
 
-# Test 1: Legitimate Connection and Message Exchange
-print("\n--- Test 1: Legitimate Connection and Message Exchange ---")
-alice.initiate_connection(bob)
-bob.approve_connection(alice)
-alice.send_message(bob, "Hello, Bob!")
+# Step 1: Legitimate Proxy Request
+print("\n--- Step 1: Legitimate Proxy Request ---")
+# Alice initiates a request to connect to Charlie via Bob (legitimate proxy)
+alice.initiate_connection(charlie, proxy=bob)
 
-# Expected:
-# Alice and Bob establish a legitimate connection.
-# Messages are successfully exchanged.
+# Expected Output:
+# Alice informs Bob that it wants to connect to Charlie through him.
+# Bob generates a unique proxy key and shares it with both Alice and Charlie.
+# Charlie receives a proxied connection request from Alice through Bob and processes it.
 
-# Test 2: Attacker Attempts Unauthorized Message Exchange
-print("\n--- Test 2: Attacker Attempts Unauthorized Message Exchange ---")
-attacker.send_message(alice, "Hi Alice! This is Attacker.")
+# Step 2: Bob Approves Proxy Request to Charlie on Alice's Behalf
+print("\n--- Step 2: Bob Approves Proxy Request to Charlie on Alice's Behalf ---")
+charlie.approve_connection(alice)
 
-# Expected:
-# [Attacker] Cannot send message. No active connection with Alice
+# Expected Output:
+# Charlie approves the proxied connection request from Alice.
+# A connection is established between Alice and Charlie, verified by the proxy key.
 
-# Test 3: Attacker Sends Invalid Approval to Establish Unauthorized Connection
-print("\n--- Test 3: Attacker Sends Invalid Approval to Alice ---")
-alice.receive_approval(attacker, uuid.uuid4())
+# Step 3: Unauthorized Proxy Request Attempt by Hacker
+print("\n--- Step 3: Unauthorized Proxy Request Attempt by Hacker ---")
+# Alice attempts to connect to Charlie through Hacker as a fake proxy
+alice.initiate_connection(charlie, proxy=hacker)
 
-# Expected:
-# [Alice] Received invalid approval request from Attacker
+# Expected Output:
+# Alice informs Hacker that it wants to connect to Charlie through him.
+# Hacker generates a fake proxy key that is not valid for Charlie.
+# Charlie receives the proxied request but blocks it due to the invalid proxy key.
 
-# Test 4: Attacker Attempts to Send Finalized Connection to Alice Without Approval
-print("\n--- Test 4: Attacker Attempts Unauthorized Finalized Connection ---")
-alice.recieve_finalize_connection(attacker, uuid.uuid4())
+# Step 4: Charlie Approves and Establishes Connection with Alice via Legitimate Proxy (Bob)
+print("\n--- Step 4: Finalize Legitimate Connection ---")
+# Charlie, who received a valid proxied request from Bob on behalf of Alice, finalizes the connection
+bob.handle_proxy_request(alice, charlie)
+charlie.approve_connection(alice)
 
-# Expected:
-# [Alice] received invalid finalized connection from Attacker
-
-# Test 5: Attacker Attempts to Terminate Connection Between Alice and Bob
-print("\n--- Test 5: Attacker Attempts Unauthorized Termination ---")
-attacker.terminate_connection(bob)
-
-# Expected:
-# [Attacker] No active connection with Bob
-
-# Test 6: Legitimate Connection Cancellation
-print("\n--- Test 6: Alice Cancels Connection Request to Bob Before Approval ---")
-alice.initiate_connection(bob)
-alice.cancel_connection(bob)
-
-# Expected:
-# [Alice] Canceled connection request to Bob
-# [Bob] should have no record of Alice's connection request after this
-
-# Test 7: Attacker Mimics Termination Request from Alice
-print("\n--- Test 7: Attacker Mimics Termination Request from Alice ---")
-bob.recieve_terminate(alice, uuid.uuid4())
-
-# Expected:
-# [Bob] Received invalid terminated connection with Alice
-
-# Test 8: Attacker Mimics Finalized Connection to Alice After Legitimate Connection is Established with Bob
-print("\n--- Test 8: Attacker Mimics Finalized Connection After Alice-Bob Connection ---")
-alice.initiate_connection(bob)
-bob.approve_connection(alice)
-attacker.recieve_finalize_connection(alice, uuid.uuid4())
-
-# Expected:
-# [Attacker] Received invalid finalized connection from Alice
-
-# Test 9: Unauthorized Connection Key Manipulation Attempt
-print("\n--- Test 9: Unauthorized Connection Key Manipulation Attempt ---")
-alice.initiate_connection(bob)
-fake_key = uuid.uuid4()
-alice.awaiting_approvals[bob.get_id()] = fake_key
-bob.approve_connection(alice)
-
-# Expected:
-# Bob’s approval should not finalize the connection with Alice if the key is manipulated.
+# Expected Output:
+# Charlie receives and approves the request via the legitimate proxy, Bob, confirming a valid connection with Alice.

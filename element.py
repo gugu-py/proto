@@ -31,6 +31,7 @@ class Element:
         # Approve the connection if it exists in pending requests
         if requester.get_id() in self.pending_recieved_requests:
             connection_key = self.pending_recieved_requests.pop(requester.get_id())
+            self.awaiting_approvals[requester.get_id()]=connection_key
             # Send approval message back to the requester with the connection key
             print(f"[{self.name}] Sent approval to {requester.name}")
             requester.receive_approval(self, connection_key)
@@ -41,6 +42,7 @@ class Element:
         # Upon receiving approval, establish the connection
         if target.get_id() in self.pending_sent_requests and self.pending_sent_requests[target.get_id()] == connection_key:
             self.awaiting_approvals[target.get_id()] = connection_key
+            del self.pending_sent_requests[target.get_id()]
             self.finalize_connection(target)
         else:
             print(f"[{self.name}] Received invalid approval request from {target.name}")
@@ -51,8 +53,18 @@ class Element:
             connection_key = self.awaiting_approvals.pop(target.get_id())
             # Establish mutual connection
             self.connections[target.get_id()] = connection_key
-            target.connections[self.get_id()] = connection_key
+            print(f"[{self.name}] sent finalized connection to {target.name}")
+            target.recieve_finalize_connection(self,connection_key)
             print(f"[{self.name}] Connection with {target.name} established with key {connection_key}")
+        else:
+            print(f"[{self.name}] invalid finalized connection to {target.name}")
+
+    def recieve_finalize_connection(self, target, connection_key):
+        if target.get_id() in self.awaiting_approvals and self.awaiting_approvals[target.get_id()]==connection_key:
+            self.connections[target.get_id()] = connection_key
+            print(f"[{self.name}] recieved finalized connection from {target.name}")
+        else:
+            print(f"[{self.name}] recieved invalid finalized connection from {target.name}")
 
     def reject_connection(self, requester):
         # Reject and remove a pending connection request
@@ -62,15 +74,29 @@ class Element:
         else:
             print(f"[{self.name}] No pending request from {requester.name}")
 
+    def cancel_connection(self, requester):
+        if requester.get_id() in self.pending_sent_requests:
+            del self.pending_sent_requests[requester.get_id()]
+            print(f"[{self.name}] Canceled connection request to {requester.name}")
+        else:
+            print(f"[{self.name}] No sent request to {requester.name}")
+
     def terminate_connection(self, target):
         # Terminate an existing connection if it exists
         if target.get_id() in self.connections:
+            target.recieve_terminate(self, self.connections[target.get_id()])
             del self.connections[target.get_id()]
-            target.connections.pop(self.get_id(), None)  # Remove mutual connection
             print(f"[{self.name}] Terminated connection with {target.name}")
         else:
             print(f"[{self.name}] No active connection with {target.name}")
 
+    def recieve_terminate(self, target, connection_key):
+        if target.get_id() in self.connections and self.connections[target.get_id()]==connection_key:
+            del self.connections[target.get_id()]
+            print(f"[{self.name}] Recieved terminated connection with {target.name}")
+        else:
+            print(f"[{self.name}] Recieved invalid terminated connection with {target.name}")
+            
     # New message functions
     def send_message(self, target, message):
         # Send a message to a connected target

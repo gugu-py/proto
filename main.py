@@ -1,45 +1,82 @@
 # main.py
 
 from element import Element
+import uuid
 
 # Create elements
 alice = Element("Alice")
 bob = Element("Bob")
-charlie = Element("Charlie")
+attacker = Element("Attacker")
 
-# Step 1: Alice initiates a connection request to Bob
-print("\n--- Step 1: Alice initiates a connection request to Bob ---")
+# Test 1: Legitimate Connection and Message Exchange
+print("\n--- Test 1: Legitimate Connection and Message Exchange ---")
 alice.initiate_connection(bob)
+bob.approve_connection(alice)
+alice.send_message(bob, "Hello, Bob!")
 
-# Step 2: Bob approves Alice's connection request
-print("\n--- Step 2: Bob approves Alice's connection request ---")
+# Expected:
+# Alice and Bob establish a legitimate connection.
+# Messages are successfully exchanged.
+
+# Test 2: Attacker Attempts Unauthorized Message Exchange
+print("\n--- Test 2: Attacker Attempts Unauthorized Message Exchange ---")
+attacker.send_message(alice, "Hi Alice! This is Attacker.")
+
+# Expected:
+# [Attacker] Cannot send message. No active connection with Alice
+
+# Test 3: Attacker Sends Invalid Approval to Establish Unauthorized Connection
+print("\n--- Test 3: Attacker Sends Invalid Approval to Alice ---")
+alice.receive_approval(attacker, uuid.uuid4())
+
+# Expected:
+# [Alice] Received invalid approval request from Attacker
+
+# Test 4: Attacker Attempts to Send Finalized Connection to Alice Without Approval
+print("\n--- Test 4: Attacker Attempts Unauthorized Finalized Connection ---")
+alice.recieve_finalize_connection(attacker, uuid.uuid4())
+
+# Expected:
+# [Alice] received invalid finalized connection from Attacker
+
+# Test 5: Attacker Attempts to Terminate Connection Between Alice and Bob
+print("\n--- Test 5: Attacker Attempts Unauthorized Termination ---")
+attacker.terminate_connection(bob)
+
+# Expected:
+# [Attacker] No active connection with Bob
+
+# Test 6: Legitimate Connection Cancellation
+print("\n--- Test 6: Alice Cancels Connection Request to Bob Before Approval ---")
+alice.initiate_connection(bob)
+alice.cancel_connection(bob)
+
+# Expected:
+# [Alice] Canceled connection request to Bob
+# [Bob] should have no record of Alice's connection request after this
+
+# Test 7: Attacker Mimics Termination Request from Alice
+print("\n--- Test 7: Attacker Mimics Termination Request from Alice ---")
+bob.recieve_terminate(alice, uuid.uuid4())
+
+# Expected:
+# [Bob] Received invalid terminated connection with Alice
+
+# Test 8: Attacker Mimics Finalized Connection to Alice After Legitimate Connection is Established with Bob
+print("\n--- Test 8: Attacker Mimics Finalized Connection After Alice-Bob Connection ---")
+alice.initiate_connection(bob)
+bob.approve_connection(alice)
+attacker.recieve_finalize_connection(alice, uuid.uuid4())
+
+# Expected:
+# [Attacker] Received invalid finalized connection from Alice
+
+# Test 9: Unauthorized Connection Key Manipulation Attempt
+print("\n--- Test 9: Unauthorized Connection Key Manipulation Attempt ---")
+alice.initiate_connection(bob)
+fake_key = uuid.uuid4()
+alice.awaiting_approvals[bob.get_id()] = fake_key
 bob.approve_connection(alice)
 
-# Step 3: Alice sends a message to Bob
-print("\n--- Step 3: Alice sends a message to Bob ---")
-alice.send_message(bob, "Hello, Bob! How are you?")
-
-# Step 4: Bob responds to Alice
-print("\n--- Step 4: Bob responds to Alice ---")
-bob.send_message(alice, "I'm good, Alice! Thanks for asking.")
-
-# Step 5: Alice initiates a connection request to Charlie
-print("\n--- Step 5: Alice initiates a connection request to Charlie ---")
-alice.initiate_connection(charlie)
-
-# Step 6: Charlie approves Alice's connection request
-print("\n--- Step 6: Charlie approves Alice's connection request ---")
-charlie.approve_connection(alice)
-
-# Step 7: Alice sends a message to Charlie
-print("\n--- Step 7: Alice sends a message to Charlie ---")
-alice.send_message(charlie, "Hi Charlie! Great to connect with you.")
-
-# Step 8: Charlie responds to Alice
-print("\n--- Step 8: Charlie responds to Alice ---")
-charlie.send_message(alice, "Hi Alice! Nice to connect as well.")
-
-# Step 9: Alice tries to send a message to Bob after terminating the connection
-print("\n--- Step 9: Alice terminates the connection with Bob and tries to send a message ---")
-alice.terminate_connection(bob)
-alice.send_message(bob, "This message should not be sent.")
+# Expected:
+# Bob’s approval should not finalize the connection with Alice if the key is manipulated.

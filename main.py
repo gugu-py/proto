@@ -1,6 +1,6 @@
 # test_hacking_proxy.py
 
-from element import Element
+from proto_element import Element
 import uuid
 
 # Initialize Elements

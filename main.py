@@ -1,111 +1,73 @@
-# test_main.py
+# test_hacking_proxy.py
 
 from element import Element
 import uuid
 
 # Initialize Elements
 alice = Element("Alice")
-bob = Element("Bob")        # Bob will act as a legitimate proxy
+bob = Element("Bob")        # Legitimate proxy
 charlie = Element("Charlie")
-hacker = Element("Hacker")   # Hacker will attempt unauthorized proxy actions
+hacker = Element("Hacker")   # Malicious actor attempting proxy hacks
 
-# Step 1: Test Legitimate Proxy Request and Approval
-print("\n--- Step 1: Legitimate Proxy Request and Approval ---")
+# Step 1: Hacker Attempts to Reuse an Expired Proxy Key
+print("\n--- Step 1: Hacker Attempts to Reuse an Expired Proxy Key ---")
+# Alice initiates a legitimate connection to Charlie through Bob
 alice.initiate_connection(charlie, proxy=bob)
+charlie.approve_connection(alice)  # Approve the connection to expire the proxy key
+
+# Hacker tries to use the same expired proxy key to connect Alice to Charlie again
+print("\n[Hacker] Trying to reuse expired proxy key...")
+hacker.initiate_connection(charlie, proxy=bob)  # Should be blocked due to expired key
 
 # Expected Output:
-# Alice sends a connection request to Charlie through Bob.
-# Bob generates a valid proxy key and sends it to both Alice and Charlie.
-# Charlie should receive the proxied connection request with verification.
+# The proxy key should be expired, and Hacker’s attempt should be blocked.
 
-charlie.approve_connection(alice)
-
-# Expected Output:
-# Charlie approves the connection request from Alice.
-# Proxy key is expired after approval.
-# Connection is established between Alice and Charlie.
-
-# Step 2: Test Expired Proxy Key Usage
-print("\n--- Step 2: Attempt Reuse of Expired Proxy Key ---")
-# Alice attempts to initiate another connection to Charlie through the expired proxy key.
-alice.initiate_connection(charlie, proxy=bob)
-
-# Expected Output:
-# The system should detect that the proxy key is expired, and Charlie should block the request.
-
-# Step 3: Unauthorized Proxy Request Attempt by Hacker
-print("\n--- Step 3: Unauthorized Proxy Request Attempt by Hacker ---")
-# Alice attempts to connect to Charlie through Hacker as an unauthorized proxy
+# Step 2: Hacker Attempts Unauthorized Proxy Connection
+print("\n--- Step 2: Hacker Attempts Unauthorized Proxy Connection ---")
+# Hacker tries to connect Alice to Charlie as an unauthorized proxy
 alice.initiate_connection(charlie, proxy=hacker)
 
 # Expected Output:
-# Hacker generates a proxy key, but Charlie does not recognize Hacker as a legitimate proxy and blocks the request.
+# Charlie should block the connection attempt because Hacker is not a trusted proxy.
 
-# Step 4: Test Legitimate Proxy Request and Rejection
-print("\n--- Step 4: Legitimate Proxy Request and Rejection ---")
-# Alice initiates another connection request to Charlie through Bob
-alice.initiate_connection(charlie, proxy=bob)
-charlie.reject_connection(alice)
+# Step 3: Hacker Generates Fake Proxy Key and Tries to Connect
+print("\n--- Step 3: Hacker Generates Fake Proxy Key and Attempts Connection ---")
+# Hacker attempts to directly interact with Alice to act as a fake proxy
+# This involves creating a fake proxy key and attempting to trick Alice
+fake_proxy_key = uuid.uuid4()  # A random UUID representing a fake key
 
-# Expected Output:
-# Charlie receives the connection request from Alice through Bob.
-# Charlie rejects the request, and the proxy key is expired immediately after rejection.
+# Hacker directly initiates a connection with Alice using a fake proxy key
+fake_proxy_content = {
+    'proxy-id': hacker.get_id(),
+    'proxy-key': fake_proxy_key
+}
 
-# Step 5: Direct Connection Request (Blocked Due to Settings)
-print("\n--- Step 5: Direct Connection Request (Should be Blocked) ---")
-# Alice attempts a direct connection to Charlie, but direct requests are not allowed by Charlie's settings
-alice.initiate_connection(charlie)
-
-# Expected Output:
-# Charlie blocks the direct connection request due to `allow_direct_request` being False.
-
-# Step 6: Canceling a Pending Connection Request
-print("\n--- Step 6: Canceling a Pending Connection Request ---")
-# Alice initiates a connection request to Bob
-alice.initiate_connection(bob)
-# Alice decides to cancel the connection request
-alice.cancel_connection(bob)
+# Alice should block this because there is no valid key from a trusted proxy
+alice.receive_connection_request(hacker, uuid.uuid4(), proxy=fake_proxy_content)
 
 # Expected Output:
-# Alice successfully cancels the connection request to Bob before it is approved or rejected.
+# Alice should reject the connection request, as the fake proxy key doesn’t match any valid key.
 
-# Step 7: Sending and Receiving Messages in Established Connection
-print("\n--- Step 7: Sending and Receiving Messages in Established Connection ---")
-# Re-establish a legitimate connection between Alice and Charlie through Bob
-alice.initiate_connection(charlie, proxy=bob)
-charlie.approve_connection(alice)
+# Step 4: Hacker Tries to Impersonate Bob as a Proxy
+print("\n--- Step 4: Hacker Tries to Impersonate Bob as a Proxy ---")
+# Hacker attempts to initiate a connection as if they were Bob
+# By passing Bob's ID and trying to use a key as if Hacker were Bob
+impersonation_proxy_content = {
+    'proxy-id': bob.get_id(),  # Hacker impersonates Bob's ID
+    'proxy-key': fake_proxy_key  # Random fake key
+}
 
-# Expected Output:
-# A connection is established between Alice and Charlie.
-
-# Alice sends a message to Charlie
-alice.send_message(charlie, "Hello, Charlie! Good to connect.")
-# Charlie responds to Alice
-charlie.send_message(alice, "Hello, Alice! Connection is working well.")
+# Charlie should detect that the key does not match the real proxy key from Bob
+charlie.receive_connection_request(hacker, uuid.uuid4(), proxy=impersonation_proxy_content)
 
 # Expected Output:
-# Alice and Charlie should successfully send and receive messages through the established connection.
+# Charlie should block the request because the proxy key does not match any legitimate key from Bob.
 
-# Step 8: Terminating an Active Connection
-print("\n--- Step 8: Terminating an Active Connection ---")
-# Alice decides to terminate the connection with Charlie
-alice.terminate_connection(charlie)
-
-# Expected Output:
-# The connection between Alice and Charlie is terminated, and any further messaging attempts should be blocked.
-
-# Step 9: Attempt to Reuse a Canceled or Terminated Connection
-print("\n--- Step 9: Attempt to Reuse a Canceled or Terminated Connection ---")
-# Alice tries to send another message to Charlie after terminating the connection
-alice.send_message(charlie, "Trying to reconnect message.")
+# Step 5: Hacker Attempts to Forge Approval with a Fake Key
+print("\n--- Step 5: Hacker Attempts to Forge Approval with a Fake Key ---")
+# Hacker tries to finalize a connection with Charlie using a forged approval
+fake_connection_key = uuid.uuid4()
+charlie.receive_approval(hacker, fake_connection_key)
 
 # Expected Output:
-# Since the connection was terminated, Alice should not be able to send messages to Charlie, and the system should block this action.
-
-# Step 10: Attempt Unauthorized Message Without Established Connection
-print("\n--- Step 10: Unauthorized Message Attempt ---")
-# Hacker tries to send a message to Alice without any established connection
-hacker.send_message(alice, "Hello, Alice! This is Hacker.")
-
-# Expected Output:
-# The system should block the message attempt from Hacker, as there is no active connection between Hacker and Alice.
+# Charlie should block the request, as the connection key does not match any pending request from Hacker.
